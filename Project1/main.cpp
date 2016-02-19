@@ -1,8 +1,10 @@
 #include <iostream>
 #include <list>
 #include <queue>
-#include <math.h> //for log function
-#include <cstdlib> //for drand48 ??
+#include <math.h>	// for log function
+#include <cstdlib>	// for drand48 ??
+#include <random>	// for exponential_distribution class
+#include <limits>	// for infinite int in MAXBUFFER
 
 using namespace std;
 
@@ -70,17 +72,39 @@ private:
 
 };
 
+// I used another C++ library <random>
+/*
 double negative_exponentially_distributed_time(double rate) { //Function taken from Project Document
 	double u;
 	u = drand48(); //drand48 returns a double in the range of [0.0, 1.0)
 	return ((-1 / rate)*log(1 - u));
 }
+*/
 
 int main() {
 
-	//Initialization
+	// Initialization
+	// Setting u and lambda and MAXBUFFER
+	double lbd = 0.1;
+	double u = 1;
+	int MAXBUFFER = numeric_limits<int>::max();
+
+	// The following codes are to generate a set of numbers with exp dist
+	default_random_engine generator;
+	exponential_distribution<double> exp_dist_for_arrival(lbd);
+	exponential_distribution<double> exp_dist_for_departure(u);
+
+	// test that the generator actually works
+	for (int i = 0; i < 1000; i++) {
+		cout << exp_dist_for_arrival(generator) << endl;
+	}
+
+	getchar();
+
 	double time = 0;
 	int length = 0; //number of packets in buffer's queue
+
+
 
 	GEL eventList();
 	Buffer buffer();
