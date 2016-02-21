@@ -6,7 +6,7 @@
 
 // Part of 3.2
 // Declare some variables as global
-const int MAXBUFFER = 4;
+const int MAXBUFFER = 10;
 
 //Set service (mu) and arrival (lambda) rate of the packets
 const double ARRIVALRATE = 0.1;
@@ -28,24 +28,6 @@ public:
 		type = inputType;
 		eventTime = inputEventTime;
 	}
-	/*
-	Event (Event inputEvent){
-	type = inputEvent.type;
-	eventTime = inputEvent.eventTime;
-	}
-	*/
-	// Questionable: initialize an event with another event
-	// initialize it with the type and time
-
-	/*
-	Event* getNextEvent(void) { return nextEvent; }
-
-	void setNextEvent(Event* inputNextEvent) { nextEvent = inputNextEvent; }
-
-	Event* getPreEvent(void) { return preEvent; }
-
-	void setPreEvent(Event* inputPreEvent) { preEvent = inputPreEvent; }
-	*/
 
 	bool getType(void) { return type; }
 
@@ -56,8 +38,6 @@ public:
 	void setEventTime(double inputTime) { eventTime = inputTime; }
 
 private:
-	//	Event* nextEvent;
-	//	Event* preEvent;
 	bool type; // 1 for arrival event, 0 for departure event.
 	double eventTime;
 };
@@ -106,7 +86,6 @@ public:
 	void setPacketServiceTime(double inputTime) { packetServiceTime = inputTime; }
 	double getPacketServiceTime() { return packetServiceTime; }
 private:
-	//	double packetLength;
 	double packetServiceTime; //the service time for EACH individual packet, theoretically based on the different packet lengths
 };
 
@@ -122,13 +101,17 @@ public:
 
 		else {
 			buffer.push(inputPacket);
-			cout << "Service time right after pushing: " << buffer.front().getPacketServiceTime() << endl;
 			return 1;
 		}
 	}
 
-	Packet accessPacket() {
-		buffer.front();
+	// PLEASE remember to return! if not the function would return an new initialized Packet
+	Packet accessOldestPacket() {
+		return buffer.front();
+	}
+
+	Packet accessLatestPacket() {
+		return buffer.back();
 	}
 
 	void removePacket() { //just pops off the first element from queue
@@ -150,40 +133,6 @@ double negExpDistTime(double rate) { //Function taken from Project Document
 }
 
 
-
-//3.3 - Processing an Arrival Event - parameter of inputTime is current time, passed by reference
-/*
-void processArrivalEvent(Event& inputEvent, GEL* eventList, Buffer* buffer, int &packetsDropped, int &bufferLength, double &currentTime, float arrivalRate, float serviceRate){ //process(eventObj,time)
-currentTime = inputEvent.getEventTime();
-double nextArrivalTime = currentTime + negExpDistTime(ARRIVALRATE);
-
-Packet newPacket;
-newPacket.setPacketServiceTime(negExpDistTime(serviceRate));
-
-Event newArrivalEvent;
-newArrivalEvent.setEventTime(nextArrivalTime);
-eventList->insertEvent(newArrivalEvent);
-
-if(bufferLength==0){
-Event nextDepartureEvent;
-nextDepartureEvent.setEventTime(currentTime+newPacket.getPacketServiceTime());
-eventList->insertEvent(nextDepartureEvent);
-}
-else{ 		//buffer is not empty
-if(bufferLength-1 < MAXBUFFER){ 	//buffer is not full
-buffer->insertPacket(newPacket);
-bufferLength++;
-}
-else{ 	//buffer is full
-packetsDropped++; //record packet drop
-}
-}
-
-//INCOMPLETE - UPDATE STATISTICS
-
-}
-*/
-
 // 3.3 - Version 2: pass everything in reference
 void processArrivalEvent(GEL& eventList, Buffer& buffer) {
 	globalTime = eventList.getFirstEvent().getEventTime();
@@ -200,17 +149,22 @@ void processArrivalEvent(GEL& eventList, Buffer& buffer) {
 		Event nextDepartureEvent(0, nextDepartureTime);	// Schedule new departure event
 		eventList.insertEvent(nextDepartureEvent);
 		bufferLength = 1;	// Now there is one being transmitted!
+		cout << "Up for Transmission Immediately!" << endl;
+		cout << "nextDepartureTime: " << nextDepartureTime << endl;
 	}
 
 	else {		// Busy, need to queue up.
 		if (buffer.insertPacket(newPacket)) {	// inserPacket() returns 1 -> successful, no packet drop
 			bufferLength = buffer.getBufferSize() + 1;	// Update global buffer size, + 1 because now there is one being transmitted
-			cout << "bufferLength: " << bufferLength << endl;
-			cout << "newPacketServiceTime: " << newPacket.getPacketServiceTime() << endl;
-			cout << "the packetService Time stored in buffer: " << buffer.accessPacket().getPacketServiceTime() << endl;
+
+			cout << "Link Busy Transmitting, Pushing the Packet to a queue......" << endl;
+			cout << "Packet Service Time pushed onto the buffer: " << buffer.accessLatestPacket().getPacketServiceTime() << endl;
 		}
 
-		else { packetsDropped++; }	// Drop it
+		else {
+			packetsDropped++;	// Drop it
+			cout << "A Packet was dropped because the buffersize is: " << bufferLength << endl;
+		}
 	}
 }
 
@@ -223,15 +177,22 @@ void processServiceCompletion(GEL& eventList, Buffer& buffer) {
 	bufferLength = buffer.getBufferSize();
 
 	if (bufferLength > 0) {
-		double nextDepartureTime = globalTime + buffer.accessPacket().getPacketServiceTime();
+		double nextDepartureTime = globalTime + buffer.accessOldestPacket().getPacketServiceTime();
 
-		cout << "PacketServiceTime: " << buffer.accessPacket().getPacketServiceTime() << endl;
+		cout << "Next PacketServiceTime: " << buffer.accessOldestPacket().getPacketServiceTime() << endl;
+		cout << "Next DepartureTime: " << nextDepartureTime << endl;
 
 		Event newDepartureEvent(0, nextDepartureTime);
 		eventList.insertEvent(newDepartureEvent);
 		buffer.removePacket();
 	}
+
+	else {
+		cout << "Nothing to be transmitted for now. Link is IDLE!" << endl;
+	}
 }
+
+
 
 int main() {
 	//3.2 - Initialization
@@ -247,7 +208,7 @@ int main() {
 	eventList.insertEvent(firstEvent);
 
 	//Main Program Loop
-	for (int i = 0; i<100; i++){
+	for (int i = 0; i < 100; i++){
 		//		Event nextEvent(eventList.getFirstEvent());	// Might not be necessary
 
 		if (eventList.getFirstEvent().getType() == 1){ //if arrival
