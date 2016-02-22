@@ -1,23 +1,27 @@
 #include <iostream>
 #include <list>
 #include <queue>
-#include <math.h> //for log function
-#include <cstdlib> //for drand48 in linux
-
-// Part of 3.2
-// Declare some variables as global
-const int MAXBUFFER = 10;
-
-//Set service (mu) and arrival (lambda) rate of the packets
-const double ARRIVALRATE = 0.1;
-const double SERVICERATE = 0.1;
-
-double globalTime = 0;		// Global time
-int bufferLength = 0;		// Number of packets in buffer's queue (includeing the one being transmitted)
-int packetsDropped = 0;		// Count of total packets droppedeventList
-
+#include <math.h>	//for log function
+#include <cstdlib>	//for drand48 in linux
+#include <limits>	// for setting an int to infinity: numeric_limits<int>::max()
 
 using namespace std;
+
+// Part of 3.2: Declare some variables as global
+const int MAXBUFFER = numeric_limits<int>::max();
+
+// Set service (mu) and arrival (lambda) rate of the packets
+const double SERVICERATE = 1;
+const double ARRIVALRATE = 0.1;
+
+// Global Tiem and Buffer Length
+double globalTime = 0;		// Global time
+int bufferLength = 0;		// Number of packets in buffer's queue (includeing the one being transmitted)
+
+// Stats 
+int packetsDropped = 0;		// Count of total packets droppedeventList
+double ServerBusyTime = 0;
+double SumOfTheArea = 0;	// This is to determine the mean queue length
 
 ///////////////////// Event Class //////////////////////////
 class Event {
@@ -135,7 +139,16 @@ double negExpDistTime(double rate) { //Function taken from Project Document
 
 // 3.3 - Version 2: pass everything in reference
 void processArrivalEvent(GEL& eventList, Buffer& buffer) {
-	globalTime = eventList.getFirstEvent().getEventTime();
+	// Time elapsed from last event for future Statistical Updates
+	double timeElapsed = eventList.getFirstEvent().getEventTime() - globalTime;
+
+	// Update globalTime
+	globalTime = globalTime + timeElapsed;
+
+	// Stats Updates for Mean queue length area
+	SumOfTheArea = SumOfTheArea + timeElapsed * bufferLength;
+
+	cout << "SumOfTheArea: " << SumOfTheArea << endl;
 
 	double nextArrivalTime = globalTime + negExpDistTime(ARRIVALRATE);
 
@@ -144,16 +157,29 @@ void processArrivalEvent(GEL& eventList, Buffer& buffer) {
 	Event newArrivalEvent(1, nextArrivalTime);		// Initialize a new arrival event
 	eventList.insertEvent(newArrivalEvent);
 
-	if (bufferLength == 0) {						// Buffer empty, up for transmission immediately
+	if (bufferLength == 0) {	// Buffer empty, up for transmission immediately
 		double nextDepartureTime = globalTime + newPacket.getPacketServiceTime();
 		Event nextDepartureEvent(0, nextDepartureTime);	// Schedule new departure event
 		eventList.insertEvent(nextDepartureEvent);
 		bufferLength = 1;	// Now there is one being transmitted!
+
+		// Stats Updates for Server busy time
+		// Buffer empty also means that there was no packet being transfered during the time elapsed,
+		// which effectively means that the link was IDLE during the entire time elapsed
+		// No increase in server busy time
+
+		cout << "No increase in server busy time: " << ServerBusyTime << endl;
 		cout << "Up for Transmission Immediately!" << endl;
 		cout << "nextDepartureTime: " << nextDepartureTime << endl;
 	}
 
-	else {		// Busy, need to queue up.
+	else {		// Busy, need to queue up, which also means that for the time elapsed,
+		// the link has been busy transmitting
+
+		// Stats Updates for Server busy time
+		ServerBusyTime = ServerBusyTime + timeElapsed;
+		cout << "ServerBusyTime is now: " << ServerBusyTime << endl;
+
 		if (buffer.insertPacket(newPacket)) {	// inserPacket() returns 1 -> successful, no packet drop
 			bufferLength = buffer.getBufferSize() + 1;	// Update global buffer size, + 1 because now there is one being transmitted
 
@@ -172,7 +198,20 @@ void processArrivalEvent(GEL& eventList, Buffer& buffer) {
 
 //3.4 - Processing a Departure Event
 void processServiceCompletion(GEL& eventList, Buffer& buffer) {
-	globalTime = eventList.getFirstEvent().getEventTime();
+	// globalTime = eventList.getFirstEvent().getEventTime();
+	// Time elapsed from last event for future Statistical Updates
+	double timeElapsed = eventList.getFirstEvent().getEventTime() - globalTime;
+
+	// Update globalTime
+	globalTime = globalTime + timeElapsed;
+
+	// Stats Updates for Mean queue length area
+	SumOfTheArea = SumOfTheArea + timeElapsed * bufferLength;
+	cout << "SumOfTheArea: " << SumOfTheArea << endl;
+
+	// Stats Updates for Server busy time
+	ServerBusyTime = ServerBusyTime + timeElapsed;
+	cout << "ServerBusyTime is now: " << ServerBusyTime << endl;
 
 	bufferLength = buffer.getBufferSize();
 
@@ -212,18 +251,27 @@ int main() {
 		//		Event nextEvent(eventList.getFirstEvent());	// Might not be necessary
 
 		if (eventList.getFirstEvent().getType() == 1){ //if arrival
-			cout << "Processing Arrival Event on iteration: " << i << endl;
+			cout << "Processing Arrival Event on iteration: " << i << endl << endl;
 			processArrivalEvent(eventList, buffer);
 		}
 
 		else{
-			cout << "Processing Service Completion on iteration: " << i << endl;
+			cout << "Processing Service Completion on iteration: " << i << endl << endl;
 			processServiceCompletion(eventList, buffer);
 		}
 
 		cout << "Global Time: " << globalTime << endl << endl;
 		eventList.removeFirstEvent();
 	}
+
+	cout << "////////////////// Final Statistics //////////////////" << endl << endl;
+	cout << "Total Time Elapsed: " << globalTime << endl << endl;
+
+	cout << "ServerBusyTime: " << ServerBusyTime << endl;
+	cout << "Utilization: " << ServerBusyTime / globalTime << endl << endl;
+
+	cout << "Mean queue length Area Under the Graph: " << SumOfTheArea << endl;
+	cout << "Mean queue length: " << SumOfTheArea / globalTime << endl << endl;
 
 	cout << "Number of Packet Dropped: " << packetsDropped << endl;
 
