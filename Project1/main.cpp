@@ -7,14 +7,18 @@
 
 using namespace std;
 
+//Main Program Iterations
+const int numberIterations = 100000;
+
 // Part of 3.2: Declare some variables as global
 const int MAXBUFFER = numeric_limits<int>::max();
+//const int MAXBUFFER = 50;
 
 // Set service (mu) and arrival (lambda) rate of the packets
 const double SERVICERATE = 1;
 const double ARRIVALRATE = 0.1;
 
-// Global Tiem and Buffer Length
+// Global Time and Buffer Length
 double globalTime = 0;		// Global time
 int bufferLength = 0;		// Number of packets in buffer's queue (includeing the one being transmitted)
 
@@ -136,6 +140,11 @@ double negExpDistTime(double rate) { //Function taken from Project Document
 	return ((-1 / rate)*log(1 - u));
 }
 
+double paretoDistTime(double rate){
+	double u = drand48();
+	return (1 / pow(1 - u, (1 / rate)));
+}
+
 
 // 3.3 - Version 2: pass everything in reference
 void processArrivalEvent(GEL& eventList, Buffer& buffer) {
@@ -148,9 +157,10 @@ void processArrivalEvent(GEL& eventList, Buffer& buffer) {
 	// Stats Updates for Mean queue length area
 	SumOfTheArea = SumOfTheArea + timeElapsed * bufferLength;
 
-	cout << "SumOfTheArea: " << SumOfTheArea << endl;
+	//	cout << "SumOfTheArea: " << SumOfTheArea << endl;
 
-	double nextArrivalTime = globalTime + negExpDistTime(ARRIVALRATE);
+	//double nextArrivalTime = globalTime + negExpDistTime(ARRIVALRATE);
+	double nextArrivalTime = globalTime + paretoDistTime(ARRIVALRATE);
 
 	Packet newPacket(negExpDistTime(SERVICERATE));	// Initialize a new packet
 
@@ -168,9 +178,9 @@ void processArrivalEvent(GEL& eventList, Buffer& buffer) {
 		// which effectively means that the link was IDLE during the entire time elapsed
 		// No increase in server busy time
 
-		cout << "No increase in server busy time: " << ServerBusyTime << endl;
-		cout << "Up for Transmission Immediately!" << endl;
-		cout << "nextDepartureTime: " << nextDepartureTime << endl;
+		//		cout << "No increase in server busy time: " << ServerBusyTime << endl;
+		//		cout << "Up for Transmission Immediately!" << endl;
+		//		cout << "nextDepartureTime: " << nextDepartureTime << endl;
 	}
 
 	else {		// Busy, need to queue up, which also means that for the time elapsed,
@@ -178,18 +188,18 @@ void processArrivalEvent(GEL& eventList, Buffer& buffer) {
 
 		// Stats Updates for Server busy time
 		ServerBusyTime = ServerBusyTime + timeElapsed;
-		cout << "ServerBusyTime is now: " << ServerBusyTime << endl;
+		//		cout << "ServerBusyTime is now: " << ServerBusyTime << endl;
 
 		if (buffer.insertPacket(newPacket)) {	// inserPacket() returns 1 -> successful, no packet drop
 			bufferLength = buffer.getBufferSize() + 1;	// Update global buffer size, + 1 because now there is one being transmitted
 
-			cout << "Link Busy Transmitting, Pushing the Packet to a queue......" << endl;
-			cout << "Packet Service Time pushed onto the buffer: " << buffer.accessLatestPacket().getPacketServiceTime() << endl;
+			//			cout << "Link Busy Transmitting, Pushing the Packet to a queue......" << endl;
+			//			cout << "Packet Service Time pushed onto the buffer: " << buffer.accessLatestPacket().getPacketServiceTime() << endl;
 		}
 
 		else {
 			packetsDropped++;	// Drop it
-			cout << "A Packet was dropped because the buffersize is: " << bufferLength << endl;
+			//			cout << "A Packet was dropped because the buffersize is: " << bufferLength << endl;
 		}
 	}
 }
@@ -207,19 +217,19 @@ void processServiceCompletion(GEL& eventList, Buffer& buffer) {
 
 	// Stats Updates for Mean queue length area
 	SumOfTheArea = SumOfTheArea + timeElapsed * bufferLength;
-	cout << "SumOfTheArea: " << SumOfTheArea << endl;
+	//	cout << "SumOfTheArea: " << SumOfTheArea << endl;
 
 	// Stats Updates for Server busy time
 	ServerBusyTime = ServerBusyTime + timeElapsed;
-	cout << "ServerBusyTime is now: " << ServerBusyTime << endl;
+	//	cout << "ServerBusyTime is now: " << ServerBusyTime << endl;
 
 	bufferLength = buffer.getBufferSize();
 
 	if (bufferLength > 0) {
 		double nextDepartureTime = globalTime + buffer.accessOldestPacket().getPacketServiceTime();
 
-		cout << "Next PacketServiceTime: " << buffer.accessOldestPacket().getPacketServiceTime() << endl;
-		cout << "Next DepartureTime: " << nextDepartureTime << endl;
+		//		cout << "Next PacketServiceTime: " << buffer.accessOldestPacket().getPacketServiceTime() << endl;
+		//		cout << "Next DepartureTime: " << nextDepartureTime << endl;
 
 		Event newDepartureEvent(0, nextDepartureTime);
 		eventList.insertEvent(newDepartureEvent);
@@ -227,13 +237,14 @@ void processServiceCompletion(GEL& eventList, Buffer& buffer) {
 	}
 
 	else {
-		cout << "Nothing to be transmitted for now. Link is IDLE!" << endl;
+		//		cout << "Nothing to be transmitted for now. Link is IDLE!" << endl;
 	}
 }
 
-
+//double thePacketsDropped[5] = {0.2, 0.4, 0.6, 0.8, 0.9};
 
 int main() {
+
 	//3.2 - Initialization
 	GEL eventList;
 	Buffer buffer(MAXBUFFER);
@@ -241,28 +252,32 @@ int main() {
 	//create first arrival event and insert it into the GEL
 	Event firstEvent;
 	firstEvent.setType(1); //type is arrival
-	firstEvent.setEventTime(globalTime + negExpDistTime(ARRIVALRATE));
+	//firstEvent.setEventTime(globalTime + negExpDistTime(ARRIVALRATE));
+	firstEvent.setEventTime(globalTime + paretoDistTime(ARRIVALRATE));
 	//cout<<"time: "<<firstEvent.getEventTime()<<endl;
 
 	eventList.insertEvent(firstEvent);
 
 	//Main Program Loop
-	for (int i = 0; i < 100; i++){
+	for (int i = 0; i < numberIterations; i++){
 		//		Event nextEvent(eventList.getFirstEvent());	// Might not be necessary
 
 		if (eventList.getFirstEvent().getType() == 1){ //if arrival
-			cout << "Processing Arrival Event on iteration: " << i << endl << endl;
+			//			cout << "Processing Arrival Event on iteration: " << i << endl << endl;
 			processArrivalEvent(eventList, buffer);
 		}
 
 		else{
-			cout << "Processing Service Completion on iteration: " << i << endl << endl;
+			//			cout << "Processing Service Completion on iteration: " << i << endl << endl;
 			processServiceCompletion(eventList, buffer);
 		}
 
-		cout << "Global Time: " << globalTime << endl << endl;
+		//		cout << "Global Time: " << globalTime << endl << endl;
 		eventList.removeFirstEvent();
+
 	}
+
+
 
 	cout << "////////////////// Final Statistics //////////////////" << endl << endl;
 	cout << "Total Time Elapsed: " << globalTime << endl << endl;
